@@ -1,0 +1,17 @@
+backup:
+  include_database: true
+  include_storage: true
+  compress: true
+  buckets: []
+
+destination:
+  type: local
+  local_path: /backups
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  static_dir: /app/web
+
+store:
+  path: /data/supaback.db

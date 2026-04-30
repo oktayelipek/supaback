@@ -1,0 +1,32 @@
+supabase:
+  url: "https://xxxxxxxxxxxx.supabase.co"
+  service_key: "eyJhbGci..."
+  database_url: "postgresql://postgres:[password]@db.xxxxxxxxxxxx.supabase.co:5432/postgres"
+
+backup:
+  include_database: true
+  include_storage: true
+  compress: true
+  buckets: [] # empty = all buckets
+
+destination:
+  type: "local" # "local" or "s3"
+  local_path: "./backups"
+
+  # S3-compatible (AWS S3, Cloudflare R2, MinIO)
+  # s3:
+  #   endpoint: ""                # leave empty for AWS, set for R2/MinIO
+  #   region: "us-east-1"
+  #   bucket: "my-backups"
+  #   prefix: "supabase"
+  #   access_key_id: "AKIAIOSFODNN7EXAMPLE"
+  #   secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  #   force_path_style: false     # set true for MinIO
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  static_dir: "./apps/web/dist"  # serve built frontend (comment out for API-only mode)
+
+store:
+  path: "./supaback.db"
