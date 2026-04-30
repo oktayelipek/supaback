@@ -150,6 +150,38 @@ func (d *sftpDest) Delete(_ context.Context, key string) error {
 	return removeAllSFTP(cl, filepath.Join(d.cfg.RemotePath, key))
 }
 
+func (d *sftpDest) ListFiles(_ context.Context, prefix string) ([]FileInfo, error) {
+	cl, err := d.client()
+	if err != nil {
+		return nil, err
+	}
+	dir := d.cfg.RemotePath
+	if prefix != "" {
+		dir = filepath.Join(dir, prefix)
+	}
+	var files []FileInfo
+	walker := cl.Walk(dir)
+	for walker.Step() {
+		if walker.Err() != nil {
+			continue
+		}
+		if walker.Stat().IsDir() {
+			continue
+		}
+		rel, _ := filepath.Rel(d.cfg.RemotePath, walker.Path())
+		files = append(files, FileInfo{Key: filepath.ToSlash(rel), Size: walker.Stat().Size()})
+	}
+	return files, nil
+}
+
+func (d *sftpDest) Read(_ context.Context, key string) (io.ReadCloser, error) {
+	cl, err := d.client()
+	if err != nil {
+		return nil, err
+	}
+	return cl.Open(filepath.Join(d.cfg.RemotePath, filepath.FromSlash(key)))
+}
+
 func removeAllSFTP(cl *sftp.Client, path string) error {
 	entries, err := cl.ReadDir(path)
 	if err != nil {

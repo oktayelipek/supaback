@@ -107,6 +107,55 @@ func (d *s3Dest) List(ctx context.Context, prefix string) ([]string, error) {
 	return names, nil
 }
 
+func (d *s3Dest) ListFiles(ctx context.Context, prefix string) ([]FileInfo, error) {
+	s3Prefix := ""
+	if d.prefix != "" {
+		s3Prefix = d.prefix + "/"
+	}
+	if prefix != "" {
+		s3Prefix += prefix + "/"
+	}
+	stripPrefix := ""
+	if d.prefix != "" {
+		stripPrefix = d.prefix + "/"
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(d.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(d.bucket),
+		Prefix: aws.String(s3Prefix),
+	})
+	var files []FileInfo
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("s3 list files: %w", err)
+		}
+		for _, obj := range page.Contents {
+			key := strings.TrimPrefix(aws.ToString(obj.Key), stripPrefix)
+			if key == "" {
+				continue
+			}
+			size := int64(0)
+			if obj.Size != nil {
+				size = *obj.Size
+			}
+			files = append(files, FileInfo{Key: key, Size: size})
+		}
+	}
+	return files, nil
+}
+
+func (d *s3Dest) Read(ctx context.Context, key string) (io.ReadCloser, error) {
+	result, err := d.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(d.bucket),
+		Key:    aws.String(d.s3Key(key)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s3 get object: %w", err)
+	}
+	return result.Body, nil
+}
+
 func (d *s3Dest) Delete(ctx context.Context, key string) error {
 	s3Prefix := d.s3Key(key) + "/"
 	paginator := s3.NewListObjectsV2Paginator(d.client, &s3.ListObjectsV2Input{

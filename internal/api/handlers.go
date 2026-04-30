@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 
@@ -275,4 +277,73 @@ func (h *Handler) ToggleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	sc.Enabled = req.Enabled
 	writeJSON(w, http.StatusOK, sc)
+}
+
+// ── backups ───────────────────────────────────────────────────────────────────
+
+type backupFileJSON struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+	Size int64  `json:"size_bytes"`
+}
+
+type backupDateJSON struct {
+	Date       string           `json:"date"`
+	TotalBytes int64            `json:"total_bytes"`
+	Files      []backupFileJSON `json:"files"`
+}
+
+func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
+	_, dest := h.state.Get()
+
+	dates, err := dest.List(r.Context(), "")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	result := make([]backupDateJSON, 0, len(dates))
+	for _, date := range dates {
+		files, err := dest.ListFiles(r.Context(), date)
+		if err != nil {
+			continue
+		}
+		entry := backupDateJSON{Date: date, Files: make([]backupFileJSON, 0, len(files))}
+		for _, f := range files {
+			entry.TotalBytes += f.Size
+			entry.Files = append(entry.Files, backupFileJSON{
+				Key:  f.Key,
+				Name: path.Base(f.Key),
+				Size: f.Size,
+			})
+		}
+		result = append(result, entry)
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) DownloadBackup(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		writeError(w, http.StatusBadRequest, "key is required")
+		return
+	}
+	cleaned := path.Clean(key)
+	if strings.Contains(cleaned, "..") || strings.HasPrefix(cleaned, "/") {
+		writeError(w, http.StatusBadRequest, "invalid key")
+		return
+	}
+
+	_, dest := h.state.Get()
+	rc, err := dest.Read(r.Context(), cleaned)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "backup not found: "+err.Error())
+		return
+	}
+	defer rc.Close()
+
+	filename := path.Base(cleaned)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	_, _ = io.Copy(w, rc)
 }

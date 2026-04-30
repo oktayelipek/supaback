@@ -25,6 +25,7 @@ export function Navbar() {
           {[
             { to: '/', label: 'Dashboard' },
             { to: '/schedules', label: 'Schedules' },
+            { to: '/backups', label: 'Backups' },
           ].map(({ to, label }) => (
             <NavLink
               key={to}

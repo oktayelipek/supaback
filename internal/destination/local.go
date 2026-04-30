@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -51,6 +52,37 @@ func (l *localDest) List(_ context.Context, prefix string) ([]string, error) {
 		}
 	}
 	return names, nil
+}
+
+func (l *localDest) ListFiles(_ context.Context, prefix string) ([]FileInfo, error) {
+	dir := l.basePath
+	if prefix != "" {
+		dir = filepath.Join(l.basePath, prefix)
+	}
+	var files []FileInfo
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(l.basePath, path)
+		files = append(files, FileInfo{Key: filepath.ToSlash(rel), Size: info.Size()})
+		return nil
+	})
+	return files, err
+}
+
+func (l *localDest) Read(_ context.Context, key string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(l.basePath, filepath.FromSlash(key)))
 }
 
 func (l *localDest) Delete(_ context.Context, key string) error {

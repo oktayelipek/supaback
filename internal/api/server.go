@@ -45,6 +45,8 @@ func NewServer(
 		r.Post("/schedules", h.CreateSchedule)
 		r.Delete("/schedules/{id}", h.DeleteSchedule)
 		r.Patch("/schedules/{id}/toggle", h.ToggleSchedule)
+		r.Get("/backups", h.ListBackups)
+		r.Get("/backups/download", h.DownloadBackup)
 	})
 
 	staticDir := cfg.Server.StaticDir

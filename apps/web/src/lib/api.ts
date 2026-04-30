@@ -1,3 +1,15 @@
+export interface BackupFile {
+  key: string
+  name: string
+  size_bytes: number
+}
+
+export interface BackupDate {
+  date: string
+  total_bytes: number
+  files: BackupFile[]
+}
+
 export interface Settings {
   configured: boolean
   supabase_url: string
@@ -88,4 +100,16 @@ export const api = {
 
   deleteSchedule: (id: number) =>
     request<void>(`/api/schedules/${id}`, { method: 'DELETE' }),
+
+  listBackups: () =>
+    request<BackupDate[]>('/api/backups'),
+
+  downloadBackup: (key: string) => {
+    const a = document.createElement('a')
+    a.href = `/api/backups/download?key=${encodeURIComponent(key)}`
+    a.download = key.split('/').pop() ?? 'backup'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  },
 }
