@@ -27,9 +27,7 @@ COPY --from=builder /build/supaback      ./supaback
 COPY --from=frontend /build/dist         ./web/
 COPY config.docker.yaml                  ./config.yaml
 
-# Persistent volumes
 RUN mkdir -p /data /backups
-VOLUME ["/data", "/backups"]
 
 EXPOSE 8080
 
