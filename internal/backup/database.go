@@ -1,12 +1,14 @@
 package backup
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/supaback/supaback/internal/config"
@@ -40,6 +42,7 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 
 	pr, pw := io.Pipe()
 
+	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, "pg_dump",
 		"--format=custom",
 		"--no-owner",
@@ -47,10 +50,17 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 		d.cfg.DatabaseURL,
 	)
 	cmd.Stdout = pw
+	cmd.Stderr = &stderrBuf
 
 	var cmdErr error
 	go func() {
 		cmdErr = cmd.Run()
+		if cmdErr != nil {
+			if msg := strings.TrimSpace(stderrBuf.String()); msg != "" {
+				slog.Error("pg_dump stderr", "output", msg)
+				cmdErr = fmt.Errorf("%w: %s", cmdErr, msg)
+			}
+		}
 		pw.CloseWithError(cmdErr)
 	}()
 
