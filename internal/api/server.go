@@ -47,6 +47,7 @@ func NewServer(
 		r.Patch("/schedules/{id}/toggle", h.ToggleSchedule)
 		r.Get("/backups", h.ListBackups)
 		r.Get("/backups/download", h.DownloadBackup)
+		r.Get("/backups/{date}/download", h.DownloadBackupDate)
 	})
 
 	staticDir := cfg.Server.StaticDir

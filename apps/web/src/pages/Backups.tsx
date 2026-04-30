@@ -44,11 +44,11 @@ function DateCard({ date, totalBytes, files }: { date: string; totalBytes: numbe
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       {/* Header row */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-5 py-4">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-3 flex-1 text-left"
+        >
           <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
           </svg>
@@ -65,12 +65,20 @@ function DateCard({ date, totalBytes, files }: { date: string; totalBytes: numbe
               </span>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-4">
+        </button>
+        <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{files.length} file{files.length !== 1 ? 's' : ''}</span>
           <span className="text-xs font-medium text-gray-600">{formatBytes(totalBytes)}</span>
+          <button
+            onClick={() => api.downloadBackupDate(date)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors"
+            title={`Download all files for ${date} as zip`}
+          >
+            <DownloadIcon />
+            Download all
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* File list */}
       {open && (

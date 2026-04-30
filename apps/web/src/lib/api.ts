@@ -51,6 +51,15 @@ export interface Schedule {
   LastRunAt: string | null
 }
 
+function triggerDownload(href: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = href
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -105,11 +114,10 @@ export const api = {
     request<BackupDate[]>('/api/backups'),
 
   downloadBackup: (key: string) => {
-    const a = document.createElement('a')
-    a.href = `/api/backups/download?key=${encodeURIComponent(key)}`
-    a.download = key.split('/').pop() ?? 'backup'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    triggerDownload(`/api/backups/download?key=${encodeURIComponent(key)}`, key.split('/').pop() ?? 'backup')
+  },
+
+  downloadBackupDate: (date: string) => {
+    triggerDownload(`/api/backups/${encodeURIComponent(date)}/download`, `backup-${date}.zip`)
   },
 }

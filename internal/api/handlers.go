@@ -1,11 +1,13 @@
 package api
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -320,6 +322,46 @@ func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
 		result = append(result, entry)
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+var reDateParam = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+func (h *Handler) DownloadBackupDate(w http.ResponseWriter, r *http.Request) {
+	date := chi.URLParam(r, "date")
+	if !reDateParam.MatchString(date) {
+		writeError(w, http.StatusBadRequest, "invalid date")
+		return
+	}
+
+	_, dest := h.state.Get()
+	files, err := dest.ListFiles(r.Context(), date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(files) == 0 {
+		writeError(w, http.StatusNotFound, "no files found for "+date)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="backup-`+date+`.zip"`)
+
+	zw := zip.NewWriter(w)
+	for _, f := range files {
+		rc, err := dest.Read(r.Context(), f.Key)
+		if err != nil {
+			continue
+		}
+		fw, err := zw.Create(f.Key)
+		if err != nil {
+			rc.Close()
+			continue
+		}
+		_, _ = io.Copy(fw, rc)
+		rc.Close()
+	}
+	_ = zw.Close()
 }
 
 func (h *Handler) DownloadBackup(w http.ResponseWriter, r *http.Request) {
