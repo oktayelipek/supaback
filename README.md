@@ -14,7 +14,8 @@ Self-hosted backup tool for Supabase. Backs up your PostgreSQL database and Stor
 - **Storage backup** — recursively downloads all files from Supabase Storage buckets
 - **Cron scheduling** — multiple schedules with standard cron expressions
 - **Retention policy** — auto-delete old backups by count or age
-- **Web UI** — dashboard, schedule management, and settings configurable at runtime (no restart needed)
+- **Web UI** — dashboard, schedule management, backup browser, and settings configurable at runtime (no restart needed)
+- **Backup browser** — browse backup files by date, download individual files or entire dates as a zip
 - **Three destination types** — local disk, SFTP (Raspberry Pi, NAS, VPS), S3-compatible (AWS, R2, MinIO)
 - **MinIO bundle** — fully self-hosted S3 storage with one extra compose flag
 - **Zero-dependency runtime** — single binary + SQLite, no external database needed
@@ -333,6 +334,27 @@ POST body:
 }
 ```
 
+### Backups
+
+```
+GET /api/backups                          → list backup dates with files and sizes
+GET /api/backups/download?key=<path>      → download a single file
+GET /api/backups/<date>/download          → download all files for a date as a .zip
+```
+
+Example response for `GET /api/backups`:
+```json
+[
+  {
+    "date": "2024-05-01",
+    "total_bytes": 1234567,
+    "files": [
+      { "key": "2024-05-01/database/postgres_20240501_020000.dump.gz", "name": "postgres_20240501_020000.dump.gz", "size_bytes": 1234567 }
+    ]
+  }
+]
+```
+
 ---
 
 ## Development
@@ -383,7 +405,7 @@ supaback/
 │   └── src/
 │       ├── components/     # Navbar, Modal, StatusBadge
 │       ├── lib/            # API client, formatters
-│       └── pages/          # Dashboard, Schedules, Settings
+│       └── pages/          # Dashboard, Schedules, Backups, Settings
 ├── config.example.yaml
 ├── config.docker.yaml      # defaults baked into Docker image
 ├── Dockerfile              # multi-stage build
@@ -479,7 +501,7 @@ docker compose up -d
 ## Roadmap
 
 - [ ] Email / webhook notifications on failure
-- [ ] Restore UI — browse and download backup files from the UI
+- [x] Restore UI — browse and download backup files from the UI
 - [ ] Multiple Supabase project support
 - [ ] Backup encryption at rest
 
