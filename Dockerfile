@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o supaback ./cmd/supabac
 FROM alpine:3.21
 
 # pg_dump for database backups (matches Supabase PostgreSQL 15)
-RUN apk add --no-cache postgresql15-client ca-certificates tzdata
+RUN apk add --no-cache postgresql17-client ca-certificates tzdata
 
 WORKDIR /app
 

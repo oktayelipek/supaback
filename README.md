@@ -456,7 +456,7 @@ Three-stage build:
 
 1. **`node:20-alpine`** — builds the React frontend
 2. **`golang:1.23-alpine`** — compiles a static Go binary (CGO disabled)
-3. **`alpine:3.21`** — final image with `postgresql15-client` for `pg_dump`
+3. **`alpine:3.21`** — final image with `postgresql17-client` for `pg_dump`
 
 Final image size: ~**70–90 MB**
 
