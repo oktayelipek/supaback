@@ -26,5 +26,7 @@ services:
       retries: 3
 
 volumes:
-  supaback-data:    # SQLite + settings
-  supaback-backups: # local backup files
+  supaback-data:
+    name: supaback-data       # fixed name — survives Coolify project renames
+  supaback-backups:
+    name: supaback-backups    # fixed name — survives Coolify project renames
