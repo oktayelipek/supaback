@@ -102,13 +102,41 @@ export function Settings_() {
         </Field>
       </Section>
 
+      {/* Retention */}
+      <Section title="Retention" description="Automatically delete old backups to manage storage space">
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Keep last N backups" hint="Keeps the N most recent backup dates. 0 = disabled.">
+            <Input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={form['retention_keep_last'] ?? '0'}
+              onChange={e => set('retention_keep_last', e.target.value)}
+            />
+          </Field>
+          <Field label="Keep for N days" hint="Deletes backups older than N days. 0 = disabled.">
+            <Input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={form['retention_keep_days'] ?? '0'}
+              onChange={e => set('retention_keep_days', e.target.value)}
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-gray-400">
+          If both rules are set, a backup is kept when <em>either</em> rule applies — the more permissive rule wins.
+        </p>
+      </Section>
+
       {/* Destination */}
       <Section title="Destination" description="Where to store your backup files">
         <Field label="Storage type">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { value: 'local', label: 'Local', sub: 'Save to disk' },
-              { value: 's3', label: 'S3-compatible', sub: 'AWS S3, R2, MinIO' },
+              { value: 'local', label: 'Local',         sub: 'Save to disk' },
+              { value: 'sftp',  label: 'SFTP',          sub: 'Raspberry Pi, NAS, VPS' },
+              { value: 's3',    label: 'S3-compatible', sub: 'AWS S3, R2, MinIO' },
             ].map(opt => (
               <button
                 key={opt.value}
@@ -136,6 +164,58 @@ export function Settings_() {
               onChange={e => set('destination_local_path', e.target.value)}
             />
           </Field>
+        )}
+
+        {destType === 'sftp' && (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <Field label="Host" required>
+                  <Input
+                    placeholder="192.168.1.100 or backup.example.com"
+                    value={form['destination_sftp_host'] ?? ''}
+                    onChange={e => set('destination_sftp_host', e.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="Port">
+                <Input
+                  type="number"
+                  placeholder="22"
+                  value={form['destination_sftp_port'] ?? ''}
+                  onChange={e => set('destination_sftp_port', e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="User" required>
+              <Input
+                placeholder="backup-user"
+                value={form['destination_sftp_user'] ?? ''}
+                onChange={e => set('destination_sftp_user', e.target.value)}
+              />
+            </Field>
+            <Field label="Password" hint="Leave empty if using SSH key">
+              <Input
+                type="password"
+                value={form['destination_sftp_password'] ?? ''}
+                onChange={e => set('destination_sftp_password', e.target.value)}
+              />
+            </Field>
+            <Field label="SSH Key Path" hint="Absolute path to private key on the machine running SupaBack (e.g. /root/.ssh/id_rsa)">
+              <Input
+                placeholder="/root/.ssh/id_rsa"
+                value={form['destination_sftp_key_path'] ?? ''}
+                onChange={e => set('destination_sftp_key_path', e.target.value)}
+              />
+            </Field>
+            <Field label="Remote path" required hint="Directory on the remote host where backups will be stored">
+              <Input
+                placeholder="/mnt/backups/supabase"
+                value={form['destination_sftp_remote_path'] ?? ''}
+                onChange={e => set('destination_sftp_remote_path', e.target.value)}
+              />
+            </Field>
+          </>
         )}
 
         {destType === 's3' && (

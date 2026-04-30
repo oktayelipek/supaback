@@ -71,6 +71,14 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		config.KeyS3AccessKeyID:         cfg.Destination.S3.AccessKeyID,
 		config.KeyS3SecretAccessKey:     cfg.Destination.S3.SecretAccessKey,
 		config.KeyS3ForcePathStyle:      strconv.FormatBool(cfg.Destination.S3.ForcePathStyle),
+		config.KeySFTPHost:              cfg.Destination.SFTP.Host,
+		config.KeySFTPPort:              strconv.Itoa(cfg.Destination.SFTP.Port),
+		config.KeySFTPUser:              cfg.Destination.SFTP.User,
+		config.KeySFTPPassword:          cfg.Destination.SFTP.Password,
+		config.KeySFTPKeyPath:           cfg.Destination.SFTP.KeyPath,
+		config.KeySFTPRemotePath:        cfg.Destination.SFTP.RemotePath,
+		config.KeyRetentionKeepLast:     strconv.Itoa(cfg.Backup.Retention.KeepLast),
+		config.KeyRetentionKeepDays:     strconv.Itoa(cfg.Backup.Retention.KeepDays),
 	})
 }
 

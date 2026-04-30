@@ -23,6 +23,18 @@ const (
 	KeyS3AccessKeyID      = "destination_s3_access_key_id"
 	KeyS3SecretAccessKey  = "destination_s3_secret_access_key"
 	KeyS3ForcePathStyle   = "destination_s3_force_path_style"
+
+	// SFTP
+	KeySFTPHost       = "destination_sftp_host"
+	KeySFTPPort       = "destination_sftp_port"
+	KeySFTPUser       = "destination_sftp_user"
+	KeySFTPPassword   = "destination_sftp_password"
+	KeySFTPKeyPath    = "destination_sftp_key_path"
+	KeySFTPRemotePath = "destination_sftp_remote_path"
+
+	// Retention
+	KeyRetentionKeepLast = "retention_keep_last"
+	KeyRetentionKeepDays = "retention_keep_days"
 )
 
 // MergeFromMap applies settings from the DB map on top of an existing Config.
@@ -87,7 +99,40 @@ func MergeFromMap(cfg *Config, m map[string]string) *Config {
 		s3.ForcePathStyle, _ = strconv.ParseBool(v)
 	}
 
+	// SFTP
+	sftp := dest.SFTP
+	if v, ok := m[KeySFTPHost]; ok && v != "" {
+		sftp.Host = v
+	}
+	if v, ok := m[KeySFTPPort]; ok && v != "" {
+		n, _ := strconv.Atoi(v)
+		sftp.Port = n
+	}
+	if v, ok := m[KeySFTPUser]; ok && v != "" {
+		sftp.User = v
+	}
+	if v, ok := m[KeySFTPPassword]; ok && v != "" {
+		sftp.Password = v
+	}
+	if v, ok := m[KeySFTPKeyPath]; ok {
+		sftp.KeyPath = v
+	}
+	if v, ok := m[KeySFTPRemotePath]; ok && v != "" {
+		sftp.RemotePath = v
+	}
+
+	// Retention
+	ret := bak.Retention
+	if v, ok := m[KeyRetentionKeepLast]; ok && v != "" {
+		ret.KeepLast, _ = strconv.Atoi(v)
+	}
+	if v, ok := m[KeyRetentionKeepDays]; ok && v != "" {
+		ret.KeepDays, _ = strconv.Atoi(v)
+	}
+
 	dest.S3 = s3
+	dest.SFTP = sftp
+	bak.Retention = ret
 	cp.Supabase = sup
 	cp.Backup = bak
 	cp.Destination = dest
@@ -117,6 +162,14 @@ func ToMap(cfg *Config) map[string]string {
 		KeyS3AccessKeyID:      cfg.Destination.S3.AccessKeyID,
 		KeyS3SecretAccessKey:  cfg.Destination.S3.SecretAccessKey,
 		KeyS3ForcePathStyle:   strconv.FormatBool(cfg.Destination.S3.ForcePathStyle),
+		KeySFTPHost:           cfg.Destination.SFTP.Host,
+		KeySFTPPort:           strconv.Itoa(cfg.Destination.SFTP.Port),
+		KeySFTPUser:           cfg.Destination.SFTP.User,
+		KeySFTPPassword:       cfg.Destination.SFTP.Password,
+		KeySFTPKeyPath:        cfg.Destination.SFTP.KeyPath,
+		KeySFTPRemotePath:     cfg.Destination.SFTP.RemotePath,
+		KeyRetentionKeepLast:  strconv.Itoa(cfg.Backup.Retention.KeepLast),
+		KeyRetentionKeepDays:  strconv.Itoa(cfg.Backup.Retention.KeepDays),
 	}
 }
 

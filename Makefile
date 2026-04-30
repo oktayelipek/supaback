@@ -35,3 +35,6 @@ docker-down:
 
 docker-logs:
 	docker compose logs -f
+
+docker-minio:
+	docker compose -f docker-compose.yml -f docker-compose.minio.yml up -d

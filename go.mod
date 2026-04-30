@@ -9,7 +9,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.71.0
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
+	github.com/pkg/sftp v1.13.6
 	github.com/robfig/cron/v3 v3.0.1
+	golang.org/x/crypto v0.29.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.34.1
 )

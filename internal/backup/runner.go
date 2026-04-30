@@ -7,6 +7,7 @@ import (
 
 	"github.com/supaback/supaback/internal/config"
 	"github.com/supaback/supaback/internal/destination"
+	"github.com/supaback/supaback/internal/retention"
 	"github.com/supaback/supaback/internal/store"
 )
 
@@ -68,6 +69,19 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	if err := r.store.CompleteJob(ctx, jobID, status, totalBytes, errMsg); err != nil {
 		slog.Warn("failed to update job record", "id", jobID, "err", err)
+	}
+
+	// Apply retention policy after a successful backup.
+	if runErr == nil {
+		ret := r.cfg.Backup.Retention
+		if ret.KeepLast > 0 || ret.KeepDays > 0 {
+			if err := retention.Apply(ctx, r.dest, retention.Config{
+				KeepLast: ret.KeepLast,
+				KeepDays: ret.KeepDays,
+			}); err != nil {
+				slog.Warn("retention policy error", "err", err)
+			}
+		}
 	}
 
 	return runErr

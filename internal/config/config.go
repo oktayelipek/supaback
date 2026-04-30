@@ -36,16 +36,32 @@ type SupabaseConfig struct {
 }
 
 type BackupConfig struct {
-	IncludeDatabase bool     `yaml:"include_database"`
-	IncludeStorage  bool     `yaml:"include_storage"`
-	Buckets         []string `yaml:"buckets"` // empty = all buckets
-	Compress        bool     `yaml:"compress"`
+	IncludeDatabase bool            `yaml:"include_database"`
+	IncludeStorage  bool            `yaml:"include_storage"`
+	Buckets         []string        `yaml:"buckets"` // empty = all buckets
+	Compress        bool            `yaml:"compress"`
+	Retention       RetentionConfig `yaml:"retention"`
+}
+
+type RetentionConfig struct {
+	KeepLast int `yaml:"keep_last"` // keep N most recent backups; 0 = disabled
+	KeepDays int `yaml:"keep_days"` // keep backups from last N days; 0 = disabled
 }
 
 type DestinationConfig struct {
-	Type      string   `yaml:"type"` // "local" or "s3"
-	LocalPath string   `yaml:"local_path"`
-	S3        S3Config `yaml:"s3"`
+	Type      string     `yaml:"type"` // "local", "s3", "sftp"
+	LocalPath string     `yaml:"local_path"`
+	S3        S3Config   `yaml:"s3"`
+	SFTP      SFTPConfig `yaml:"sftp"`
+}
+
+type SFTPConfig struct {
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"` // default 22
+	User       string `yaml:"user"`
+	Password   string `yaml:"password"`
+	KeyPath    string `yaml:"key_path"`   // path to private key file
+	RemotePath string `yaml:"remote_path"` // base directory on remote host
 }
 
 type S3Config struct {

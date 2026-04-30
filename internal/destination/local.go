@@ -21,22 +21,40 @@ func newLocal(basePath string) (*localDest, error) {
 
 func (l *localDest) Write(_ context.Context, key string, r io.Reader) (int64, error) {
 	dest := filepath.Join(l.basePath, key)
-
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return 0, fmt.Errorf("create dir: %w", err)
 	}
-
 	f, err := os.Create(dest)
 	if err != nil {
 		return 0, fmt.Errorf("create file %s: %w", dest, err)
 	}
 	defer f.Close()
+	return io.Copy(f, r)
+}
 
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return 0, fmt.Errorf("write file: %w", err)
+func (l *localDest) List(_ context.Context, prefix string) ([]string, error) {
+	dir := l.basePath
+	if prefix != "" {
+		dir = filepath.Join(l.basePath, prefix)
 	}
-	return n, nil
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
+}
+
+func (l *localDest) Delete(_ context.Context, key string) error {
+	return os.RemoveAll(filepath.Join(l.basePath, key))
 }
 
 func (l *localDest) String() string {
