@@ -410,6 +410,46 @@ supaback/
 
 ---
 
+## Deploying to Coolify
+
+[Coolify](https://coolify.io) is a self-hosted PaaS that can deploy SupaBack directly from GitHub.
+
+### Steps
+
+1. **New Resource → Docker Compose**
+   - Source: GitHub → `oktayelipek/supaback`, branch `main`
+   - Compose file: `docker-compose.yml`
+
+2. **Environment Variables** — wrap JWT values in double quotes to prevent shell parsing errors:
+   ```
+   SUPABASE_URL="https://xxxxxxxxxxxx.supabase.co"
+   SUPABASE_SERVICE_KEY="eyJhbGci..."
+   SUPABASE_DB_URL="postgresql://postgres:[password]@db.xxxxxxxxxxxx.supabase.co:5432/postgres"
+   ```
+
+3. **Port configuration** — this is important:
+
+   | Setting | Behaviour |
+   |---------|-----------|
+   | **Port Mappings** (host:container) | Binds directly to the host — risk of port conflicts |
+   | **Ports Exposes** | Only tells Traefik the container listens on that port — no host binding |
+
+   → Leave **Port Mappings empty**, set **Ports Exposes to `8080`**.  
+   Traefik routes traffic to the container internally; nothing is exposed directly to the host.
+
+4. **Domain** — set your domain in Coolify. SSL is provisioned automatically via Let's Encrypt.
+
+5. **Deploy** — first build takes ~3–5 minutes (Node + Go compile). Subsequent deploys are faster due to layer caching.
+
+### Volumes
+
+Coolify manages Docker volumes automatically. After the first deploy, confirm these exist under your resource's **Volumes** tab:
+
+- `supaback-data` → SQLite database (settings, job history)
+- `supaback-backups` → backup files (when using local destination)
+
+---
+
 ## Docker details
 
 Three-stage build:
