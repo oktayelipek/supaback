@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -42,7 +43,7 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 
 	slog.Info("starting database backup", "key", key)
 
-	dbURL := forceIPv4ConnURL(ctx, d.cfg.DatabaseURL)
+	connDSN, password := buildConnDSN(ctx, d.cfg.DatabaseURL)
 
 	pr, pw := io.Pipe()
 
@@ -51,10 +52,12 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 		"--format=custom",
 		"--no-owner",
 		"--no-privileges",
-		dbURL,
+		"-d", connDSN,
 	)
 	cmd.Stdout = pw
 	cmd.Stderr = &stderrBuf
+	// PGPASSWORD keeps the password out of the process list.
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+password)
 
 	var cmdErr error
 	go func() {
@@ -96,34 +99,76 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 	return n, nil
 }
 
-// forceIPv4ConnURL resolves the hostname in a PostgreSQL connection URL to an
-// IPv4 address and injects it as the "hostaddr" parameter.  This prevents
-// pg_dump from trying IPv6 in environments (e.g. Alpine Docker) where IPv6
-// routing is absent.  The original "host" value is kept so libpq can still
-// verify the TLS certificate against the correct hostname.
-func forceIPv4ConnURL(ctx context.Context, rawURL string) string {
+// buildConnDSN converts a PostgreSQL connection URI into the libpq
+// keyword-value DSN format and resolves the hostname to IPv4.
+//
+// Using the keyword-value format lets us set both "host" (for TLS SNI /
+// certificate verification) and "hostaddr" (the actual TCP address) as
+// separate keys.  This forces libpq to dial IPv4 while still validating
+// the server certificate against the real hostname — important for Docker /
+// Alpine where IPv6 routing is absent but the DNS returns AAAA records first.
+//
+// The password is returned separately so the caller can pass it via
+// PGPASSWORD instead of embedding it in the DSN (keeps it off the process list).
+func buildConnDSN(ctx context.Context, rawURL string) (dsn, password string) {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Hostname() == "" {
-		return rawURL
+		return rawURL, ""
 	}
+
 	host := u.Hostname()
-	if net.ParseIP(host).To4() != nil {
-		return rawURL // already an IPv4 literal
+	port := u.Port()
+	if port == "" {
+		port = "5432"
 	}
-	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
-	if err != nil {
-		slog.Warn("DNS lookup failed, using original URL", "host", host, "err", err)
-		return rawURL
+	user := u.User.Username()
+	password, _ = u.User.Password()
+	dbname := strings.TrimPrefix(u.Path, "/")
+	if dbname == "" {
+		dbname = "postgres"
 	}
-	for _, a := range addrs {
-		if net.ParseIP(a).To4() != nil {
-			q := u.Query()
-			q.Set("hostaddr", a)
-			u.RawQuery = q.Encode()
-			slog.Info("resolved DB host to IPv4", "host", host, "addr", a)
-			return u.String()
+	sslmode := u.Query().Get("sslmode")
+	if sslmode == "" {
+		sslmode = "require" // Supabase mandates TLS
+	}
+
+	// Resolve hostname to an IPv4 address.
+	hostaddr := ""
+	if net.ParseIP(host).To4() == nil { // skip if already an IPv4 literal
+		addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+		if err == nil {
+			for _, a := range addrs {
+				if net.ParseIP(a).To4() != nil {
+					hostaddr = a
+					slog.Info("pg_dump: resolved host to IPv4", "host", host, "addr", a)
+					break
+				}
+			}
+		}
+		if hostaddr == "" {
+			slog.Warn("pg_dump: no IPv4 address found, falling back to hostname", "host", host)
 		}
 	}
-	slog.Warn("no IPv4 address found for DB host, using original URL", "host", host)
-	return rawURL
+
+	parts := []string{
+		"host=" + dsnEscape(host),
+		"port=" + port,
+		"dbname=" + dsnEscape(dbname),
+		"user=" + dsnEscape(user),
+		"sslmode=" + sslmode,
+	}
+	if hostaddr != "" {
+		parts = append(parts, "hostaddr="+hostaddr)
+	}
+	return strings.Join(parts, " "), password
+}
+
+// dsnEscape quotes a DSN value if it contains spaces or special characters.
+func dsnEscape(s string) string {
+	if !strings.ContainsAny(s, " \\'=") {
+		return s
+	}
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `\'`)
+	return "'" + s + "'"
 }
