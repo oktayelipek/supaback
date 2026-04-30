@@ -49,6 +49,17 @@ func main() {
 		cfg = config.MergeFromMap(cfg, dbSettings)
 	}
 
+	// On first run (DB has no Supabase URL), persist env/file config so the
+	// Settings UI immediately reflects what was configured externally.
+	if dbSettings[config.KeySupabaseURL] == "" && cfg.Supabase.URL != "" {
+		seed := config.ToMap(cfg)
+		if seedErr := db.SetSettings(context.Background(), seed); seedErr != nil {
+			slog.Warn("could not seed settings from config", "err", seedErr)
+		} else {
+			slog.Info("seeded settings from env/config into DB")
+		}
+	}
+
 	// Build destination (use local fallback if dest config is incomplete)
 	dest, err := destination.New(cfg.Destination)
 	if err != nil {
