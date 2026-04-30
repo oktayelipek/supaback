@@ -23,7 +23,7 @@ type Scheduler struct {
 
 func New(state *appstate.State, s *store.Store) *Scheduler {
 	return &Scheduler{
-		cron:    cron.New(cron.WithSeconds()),
+		cron:    cron.New(),
 		state:   state,
 		store:   s,
 		entries: make(map[int64]cron.EntryID),
