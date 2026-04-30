@@ -125,6 +125,31 @@ func defaults() *Config {
 	}
 }
 
+// EnvOverrides returns a settings map containing only the keys that are
+// explicitly set via environment variables.  Used to re-apply env vars on top
+// of DB settings so that Coolify / Docker env vars always win for the keys
+// they cover — even after a volume wipe.
+func EnvOverrides() map[string]string {
+	pairs := []struct{ env, key string }{
+		{"SUPABASE_URL", KeySupabaseURL},
+		{"SUPABASE_SERVICE_KEY", KeySupabaseServiceKey},
+		{"SUPABASE_DB_URL", KeySupabaseDBURL},
+		{"S3_ENDPOINT", KeyS3Endpoint},
+		{"S3_REGION", KeyS3Region},
+		{"S3_BUCKET", KeyS3Bucket},
+		{"S3_ACCESS_KEY_ID", KeyS3AccessKeyID},
+		{"S3_SECRET_ACCESS_KEY", KeyS3SecretAccessKey},
+		{"LOCAL_BACKUP_PATH", KeyLocalPath},
+	}
+	out := make(map[string]string)
+	for _, p := range pairs {
+		if v := os.Getenv(p.env); v != "" {
+			out[p.key] = v
+		}
+	}
+	return out
+}
+
 func applyEnv(cfg *Config) {
 	// Supabase
 	if v := os.Getenv("SUPABASE_URL"); v != "" {

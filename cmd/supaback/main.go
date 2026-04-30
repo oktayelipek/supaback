@@ -49,14 +49,16 @@ func main() {
 		cfg = config.MergeFromMap(cfg, dbSettings)
 	}
 
-	// On first run (DB has no Supabase URL), persist env/file config so the
-	// Settings UI immediately reflects what was configured externally.
-	if dbSettings[config.KeySupabaseURL] == "" && cfg.Supabase.URL != "" {
-		seed := config.ToMap(cfg)
-		if seedErr := db.SetSettings(context.Background(), seed); seedErr != nil {
-			slog.Warn("could not seed settings from config", "err", seedErr)
+	// Env vars always win for the keys they cover, and are written back to the
+	// DB so the Settings UI stays in sync.  This also re-populates the DB after
+	// a volume wipe — as long as the same env vars are set in Coolify / Docker,
+	// credentials are never truly lost.
+	if envOverrides := config.EnvOverrides(); len(envOverrides) > 0 {
+		cfg = config.MergeFromMap(cfg, envOverrides)
+		if seedErr := db.SetSettings(context.Background(), envOverrides); seedErr != nil {
+			slog.Warn("could not persist env overrides to DB", "err", seedErr)
 		} else {
-			slog.Info("seeded settings from env/config into DB")
+			slog.Info("env overrides written to DB", "keys", len(envOverrides))
 		}
 	}
 
