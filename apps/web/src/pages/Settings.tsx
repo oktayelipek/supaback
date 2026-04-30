@@ -12,7 +12,12 @@ export function Settings_() {
 
   useEffect(() => {
     if (data) {
-      setForm(data as unknown as Record<string, string>)
+      // exclude computed boolean fields that aren't settings keys
+      const { configured: _c, ...settings } = data as unknown as Record<string, unknown>
+      const stringSettings = Object.fromEntries(
+        Object.entries(settings).filter(([, v]) => typeof v === 'string')
+      ) as Record<string, string>
+      setForm(stringSettings)
       setDestType(data.destination_type || 'local')
     }
   }, [data])

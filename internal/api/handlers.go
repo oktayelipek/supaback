@@ -83,10 +83,20 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
-	var incoming map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+	// Decode into raw values first so non-string fields (e.g. "configured":true)
+	// don't cause a type error when the client sends them back verbatim.
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
+	}
+	incoming := make(map[string]string, len(raw))
+	for k, v := range raw {
+		var s string
+		if err := json.Unmarshal(v, &s); err == nil {
+			incoming[k] = s
+		}
+		// non-string values (booleans, nulls) are silently dropped
 	}
 
 	// Remove meta keys that shouldn't be stored
