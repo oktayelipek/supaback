@@ -43,6 +43,10 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 
 	slog.Info("starting database backup", "key", key)
 
+	if err := checkIPv4Reachable(ctx, d.cfg.DatabaseURL); err != nil {
+		return 0, err
+	}
+
 	connDSN, password := buildConnDSN(ctx, d.cfg.DatabaseURL)
 
 	pr, pw := io.Pipe()
@@ -161,6 +165,37 @@ func buildConnDSN(ctx context.Context, rawURL string) (dsn, password string) {
 		parts = append(parts, "hostaddr="+hostaddr)
 	}
 	return strings.Join(parts, " "), password
+}
+
+// checkIPv4Reachable verifies that the database hostname resolves to at least
+// one IPv4 address. Newer Supabase projects use IPv6-only direct connections;
+// those fail in Docker where IPv6 routing is absent.  Returning a clear error
+// early is better than a cryptic pg_dump "Network unreachable" message.
+func checkIPv4Reachable(ctx context.Context, rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil // let pg_dump surface the URL error itself
+	}
+	host := u.Hostname()
+	if host == "" || net.ParseIP(host).To4() != nil {
+		return nil // literal IPv4 or no host to check
+	}
+	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return nil // DNS error — let pg_dump handle it
+	}
+	for _, a := range addrs {
+		if net.ParseIP(a).To4() != nil {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"database host %q resolves to IPv6 only — "+
+			"Docker containers cannot reach it without IPv6 routing. "+
+			"Use the Supabase Session Pooler URL instead: "+
+			"Project Settings → Database → Connection Pooling → Session mode (port 5432)",
+		host,
+	)
 }
 
 // dsnEscape quotes a DSN value if it contains spaces or special characters.
