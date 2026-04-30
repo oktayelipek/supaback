@@ -1,6 +1,6 @@
 # SupaBack
 
-Self-hosted backup tool for Supabase. Backs up your PostgreSQL database and Storage buckets on a schedule, stores results locally or in any S3-compatible service, and provides a web UI for management — all in a single Docker container.
+Self-hosted backup tool for Supabase. Backs up your PostgreSQL database and Storage buckets on a schedule, stores results locally, on any SSH server, or in S3-compatible storage — and provides a web UI for everything.
 
 ![Go](https://img.shields.io/badge/Go-1.23-00ADD8?style=flat&logo=go)
 ![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)
@@ -12,9 +12,11 @@ Self-hosted backup tool for Supabase. Backs up your PostgreSQL database and Stor
 
 - **Database backup** — runs `pg_dump` (custom format, optional gzip compression)
 - **Storage backup** — recursively downloads all files from Supabase Storage buckets
-- **Cron scheduling** — create multiple schedules with standard cron expressions
-- **Web UI** — dashboard, schedule management, and settings — all configurable at runtime
-- **Multiple destinations** — local filesystem, AWS S3, Cloudflare R2, or MinIO
+- **Cron scheduling** — multiple schedules with standard cron expressions
+- **Retention policy** — auto-delete old backups by count or age
+- **Web UI** — dashboard, schedule management, and settings configurable at runtime (no restart needed)
+- **Three destination types** — local disk, SFTP (Raspberry Pi, NAS, VPS), S3-compatible (AWS, R2, MinIO)
+- **MinIO bundle** — fully self-hosted S3 storage with one extra compose flag
 - **Zero-dependency runtime** — single binary + SQLite, no external database needed
 - **Docker-first** — one `docker compose up` and you're running
 
@@ -22,54 +24,148 @@ Self-hosted backup tool for Supabase. Backs up your PostgreSQL database and Stor
 
 ## Quick Start
 
-### Docker Compose (recommended)
+### Docker Compose
 
 ```bash
-git clone https://github.com/supaback/supaback.git
+git clone https://github.com/oktayelipek/supaback.git
 cd supaback
 
 cp .env.example .env
-```
-
-Edit `.env` with your Supabase credentials:
-
-```env
-SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGci...
-SUPABASE_DB_URL=postgresql://postgres:[password]@db.xxxxxxxxxxxx.supabase.co:5432/postgres
+# edit .env — add your Supabase credentials
 ```
 
 ```bash
 docker compose up -d
 ```
 
-Open **http://localhost:8080** — your instance is ready.
+Open **http://localhost:8080** and enter your credentials in **Settings**.
 
-> Credentials can also be entered directly in the **Settings** page of the UI without editing any files.
+> All configuration can be done through the UI — no config file editing required.
 
 ---
 
-## Screenshots
+## Destinations
 
+### Local disk
+
+Backups are written to a directory on the machine running SupaBack. Default path inside Docker: `/backups` (mounted volume).
+
+```yaml
+destination:
+  type: local
+  local_path: /backups
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  SupaBack   Dashboard   Schedules   Settings                 │
-├─────────────────────────────────────────────────────────────┤
-│                                              [Run Backup ▶]  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐   │
-│  │ Total    │ │ Success  │ │  Failed  │ │ Data Backed  │   │
-│  │   42     │ │   40     │ │    2     │ │   1.4 GB     │   │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘   │
-│                                                              │
-│  Backup History                                              │
-│  ┌──────────────┬──────────┬─────────┬────────┬──────────┐  │
-│  │ Started      │ Type     │ Status  │ Size   │ Duration │  │
-│  ├──────────────┼──────────┼─────────┼────────┼──────────┤  │
-│  │ May 1, 02:00 │ full     │ ✓ Done  │ 48 MB  │ 1m 12s   │  │
-│  │ Apr 30, 2:00 │ full     │ ✓ Done  │ 47 MB  │ 1m 08s   │  │
-│  └──────────────┴──────────┴─────────┴────────┴──────────┘  │
-└─────────────────────────────────────────────────────────────┘
+
+### SFTP
+
+Back up to any SSH-capable machine on your network or the internet. Works with Raspberry Pi, Synology/QNAP NAS, TrueNAS, and any Linux VPS.
+
+```yaml
+destination:
+  type: sftp
+  sftp:
+    host: 192.168.1.100       # or hostname
+    port: 22
+    user: backup-user
+    password: ""              # use password OR key_path
+    key_path: /root/.ssh/id_rsa
+    remote_path: /mnt/backups/supabase
 ```
+
+All fields are also configurable from the **Settings** UI.
+
+### S3-compatible
+
+Works with AWS S3, Cloudflare R2, MinIO, and any other S3-compatible service.
+
+**AWS S3**
+```env
+S3_REGION=us-east-1
+S3_BUCKET=my-supabase-backups
+S3_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```
+
+**Cloudflare R2**
+```env
+S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET=my-supabase-backups
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+```
+
+**MinIO (self-hosted, see section below)**
+```env
+S3_ENDPOINT=http://minio:9000
+S3_REGION=us-east-1
+S3_BUCKET=supaback
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin
+```
+
+Enable **Force path style** in Settings for MinIO.
+
+---
+
+## Self-Hosted Storage with MinIO
+
+Run SupaBack and MinIO together — no cloud account needed.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.minio.yml up -d
+# shortcut:
+make docker-minio
+```
+
+| Service | URL |
+|---------|-----|
+| SupaBack UI | http://localhost:8080 |
+| MinIO console | http://localhost:9001 |
+
+Default credentials: `minioadmin / minioadmin`. Change them in `docker-compose.minio.yml` before deploying.
+
+The `minio-init` service automatically creates the `supaback` bucket on first start.
+
+---
+
+## Retention Policy
+
+Automatically delete old backups to prevent storage from filling up.
+
+Configure in **Settings → Retention** or via config:
+
+```yaml
+backup:
+  retention:
+    keep_last: 7   # keep the 7 most recent backup dates
+    keep_days: 30  # keep anything from the last 30 days
+```
+
+| Rule | Behaviour |
+|------|-----------|
+| `keep_last: N` | Keeps the N most recent backup dates, deletes the rest |
+| `keep_days: N` | Keeps backups newer than N days, deletes the rest |
+| Both set | A backup is kept if **either** rule says to keep it |
+| Both 0 | Retention is disabled — nothing is ever deleted |
+
+Retention runs automatically after every successful backup job and works on all three destination types.
+
+---
+
+## Backup Schedule
+
+Create schedules from the **Schedules** page. Standard 5-field cron syntax:
+
+| Expression | Meaning |
+|------------|---------|
+| `0 * * * *` | Every hour |
+| `0 2 * * *` | Daily at 02:00 |
+| `0 2 * * 0` | Every Sunday at 02:00 |
+| `0 2 1 * *` | 1st of every month at 02:00 |
+| `0 */6 * * *` | Every 6 hours |
+
+Each schedule can target the full instance, database only, or storage only. Multiple schedules can coexist.
 
 ---
 
@@ -81,24 +177,36 @@ Configuration is layered — each level overrides the previous:
 config.yaml  →  environment variables  →  Settings UI (stored in SQLite)
 ```
 
-The Settings UI has the highest priority and persists across restarts. You don't need to touch any files after initial setup.
+The Settings UI has the highest priority and persists across restarts.
 
 ### Environment Variables
 
+**Supabase**
+
+| Variable | Description |
+|----------|-------------|
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_SERVICE_KEY` | `service_role` API key |
+| `SUPABASE_DB_URL` | PostgreSQL connection string (URI) |
+
+**Server / paths**
+
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SUPABASE_URL` | Supabase project URL | — |
-| `SUPABASE_SERVICE_KEY` | `service_role` API key | — |
-| `SUPABASE_DB_URL` | PostgreSQL connection string (URI) | — |
 | `PORT` | HTTP server port | `8080` |
-| `STORE_PATH` | Path to SQLite database | `./supaback.db` |
+| `STORE_PATH` | SQLite database path | `./supaback.db` |
 | `LOCAL_BACKUP_PATH` | Local backup directory | `./backups` |
-| `STATIC_DIR` | Path to built frontend files | — |
-| `S3_ENDPOINT` | S3-compatible endpoint URL | — |
-| `S3_REGION` | S3 region | `us-east-1` |
-| `S3_BUCKET` | S3 bucket name | — |
-| `S3_ACCESS_KEY_ID` | S3 access key | — |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key | — |
+| `STATIC_DIR` | Path to built frontend | — |
+
+**S3**
+
+| Variable | Description |
+|----------|-------------|
+| `S3_ENDPOINT` | Custom endpoint (leave empty for AWS) |
+| `S3_REGION` | Region (default `us-east-1`) |
+| `S3_BUCKET` | Bucket name |
+| `S3_ACCESS_KEY_ID` | Access key |
+| `S3_SECRET_ACCESS_KEY` | Secret key |
 
 ### config.yaml
 
@@ -112,21 +220,31 @@ backup:
   include_database: true
   include_storage: true
   compress: true
-  buckets: []          # empty = all buckets
+  buckets: []           # empty = all buckets
+  retention:
+    keep_last: 7
+    keep_days: 30
 
 destination:
-  type: "local"        # "local" or "s3"
+  type: "local"         # "local", "sftp", or "s3"
   local_path: "./backups"
 
-  # S3-compatible (uncomment to use)
+  # sftp:
+  #   host: "192.168.1.100"
+  #   port: 22
+  #   user: "backup-user"
+  #   password: ""
+  #   key_path: "/root/.ssh/id_rsa"
+  #   remote_path: "/mnt/backups/supabase"
+
   # s3:
-  #   endpoint: ""     # leave empty for AWS, set for R2/MinIO
+  #   endpoint: ""
   #   region: "us-east-1"
   #   bucket: "my-backups"
   #   prefix: "supabase"
   #   access_key_id: ""
   #   secret_access_key: ""
-  #   force_path_style: false   # set true for MinIO
+  #   force_path_style: false
 
 server:
   host: "0.0.0.0"
@@ -138,130 +256,7 @@ store:
 
 ---
 
-## Destination: S3-compatible
-
-SupaBack works with any S3-compatible object storage.
-
-### AWS S3
-
-```env
-S3_REGION=us-east-1
-S3_BUCKET=my-supabase-backups
-S3_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-```
-
-### Cloudflare R2
-
-```env
-S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-S3_REGION=auto
-S3_BUCKET=my-supabase-backups
-S3_ACCESS_KEY_ID=...
-S3_SECRET_ACCESS_KEY=...
-```
-
-### MinIO (self-hosted)
-
-```env
-S3_ENDPOINT=http://minio:9000
-S3_REGION=us-east-1
-S3_BUCKET=supaback
-S3_ACCESS_KEY_ID=minioadmin
-S3_SECRET_ACCESS_KEY=minioadmin
-```
-
-Also enable **Force path style** in the Settings UI or set `force_path_style: true` in config.
-
----
-
-## Backup Schedule
-
-Schedules use standard 5-field cron syntax. Create and manage them from the **Schedules** page.
-
-| Expression | Meaning |
-|------------|---------|
-| `0 * * * *` | Every hour |
-| `0 2 * * *` | Daily at 02:00 |
-| `0 2 * * 0` | Every Sunday at 02:00 |
-| `0 2 1 * *` | 1st of every month at 02:00 |
-| `0 */6 * * *` | Every 6 hours |
-
-Each schedule can back up the full instance, database only, or storage only. Multiple schedules can run concurrently.
-
----
-
-## API Reference
-
-All endpoints return JSON. Base path: `/api`
-
-### Health
-
-```
-GET /api/health
-```
-```json
-{ "status": "ok", "configured": true }
-```
-
-### Settings
-
-```
-GET  /api/settings          → current configuration
-PUT  /api/settings          → update configuration (persisted to DB)
-```
-
-**PUT body example:**
-```json
-{
-  "supabase_url": "https://xxx.supabase.co",
-  "supabase_service_key": "eyJhbGci...",
-  "supabase_db_url": "postgresql://...",
-  "backup_include_database": "true",
-  "backup_include_storage": "true",
-  "backup_compress": "true",
-  "destination_type": "local",
-  "destination_local_path": "/backups"
-}
-```
-
-### Jobs
-
-```
-GET  /api/jobs?limit=50     → list recent backup jobs
-POST /api/jobs              → trigger a backup immediately
-```
-
-**POST body:**
-```json
-{ "type": "full" }          // "full" | "database" | "storage"
-```
-
-**Response:** `202 Accepted` — backup runs in the background.
-
-### Schedules
-
-```
-GET    /api/schedules              → list all schedules
-POST   /api/schedules              → create a schedule
-DELETE /api/schedules/:id          → delete a schedule
-PATCH  /api/schedules/:id/toggle   → enable or disable
-```
-
-**POST body:**
-```json
-{
-  "name": "Daily backup",
-  "cron_expr": "0 2 * * *",
-  "type": "full"
-}
-```
-
----
-
 ## Backup File Layout
-
-Backups are organized by date inside the destination directory:
 
 ```
 backups/
@@ -276,7 +271,7 @@ backups/
             └── report-q1.pdf
 ```
 
-Database dumps use `pg_dump --format=custom`, which can be restored with `pg_restore`.
+The top-level date directory is what retention acts on — removing `2024-05-01/` removes the entire backup for that day.
 
 **Restore example:**
 ```bash
@@ -291,37 +286,82 @@ pg_restore \
 
 ---
 
+## API Reference
+
+All endpoints return JSON. Base path: `/api`
+
+### Health
+
+```
+GET /api/health
+→ { "status": "ok", "configured": true }
+```
+
+### Settings
+
+```
+GET /api/settings       → current configuration
+PUT /api/settings       → update and persist configuration
+```
+
+### Jobs
+
+```
+GET  /api/jobs?limit=50  → list recent backup jobs
+POST /api/jobs           → trigger a backup immediately
+```
+
+POST body: `{ "type": "full" }` — `"full"` | `"database"` | `"storage"`
+
+Response: `202 Accepted` — backup runs asynchronously.
+
+### Schedules
+
+```
+GET    /api/schedules              → list all schedules
+POST   /api/schedules              → create a schedule
+DELETE /api/schedules/:id          → delete a schedule
+PATCH  /api/schedules/:id/toggle   → enable or disable
+```
+
+POST body:
+```json
+{
+  "name": "Daily backup",
+  "cron_expr": "0 2 * * *",
+  "type": "full"
+}
+```
+
+---
+
 ## Development
 
 ### Prerequisites
 
 - Go 1.23+
 - Node.js 20+
-- `pg_dump` (install `postgresql-client` on Linux/macOS)
+- `pg_dump` (`brew install libpq` on macOS, `apt install postgresql-client` on Linux)
 
 ### Running locally
 
 ```bash
-# 1. Install frontend dependencies
-make web-install
+make web-install        # install npm dependencies
 
-# 2. Copy and edit config
 cp config.example.yaml config.yaml
+# edit config.yaml or leave empty and configure via UI
 
-# 3. Start the Go API server
-make serve                  # → http://localhost:8080/api
-
-# 4. In a separate terminal, start the frontend dev server
-make web-dev                # → http://localhost:5173
+make serve              # Go API → http://localhost:8080/api
+make web-dev            # Vite dev server → http://localhost:5173
 ```
 
-The Vite dev server proxies all `/api` requests to `:8080`, so hot-reload works end-to-end.
+The Vite dev server proxies all `/api` requests to `:8080`.
 
 ### Building for production
 
 ```bash
-make web-build   # compiles frontend into apps/web/dist
-make build       # compiles Go binary into bin/supaback
+make web-build          # → apps/web/dist
+make build              # → bin/supaback
 ./bin/supaback --config config.yaml
 ```
 
@@ -329,13 +369,14 @@ make build       # compiles Go binary into bin/supaback
 
 ```
 supaback/
-├── cmd/supaback/           # main entry point
+├── cmd/supaback/           # entry point
 ├── internal/
 │   ├── api/                # HTTP server, routes, handlers
 │   ├── appstate/           # thread-safe config + destination holder
 │   ├── backup/             # pg_dump runner, storage downloader, orchestrator
-│   ├── config/             # config struct, env loading, settings keys
-│   ├── destination/        # local filesystem and S3 writers
+│   ├── config/             # structs, env loading, settings keys
+│   ├── destination/        # local, SFTP, S3 writers (shared interface)
+│   ├── retention/          # retention policy engine
 │   ├── scheduler/          # cron engine wrapper
 │   └── store/              # SQLite: jobs, schedules, settings
 ├── apps/web/               # React + Vite frontend
@@ -343,10 +384,11 @@ supaback/
 │       ├── components/     # Navbar, Modal, StatusBadge
 │       ├── lib/            # API client, formatters
 │       └── pages/          # Dashboard, Schedules, Settings
-├── config.example.yaml     # config template
-├── config.docker.yaml      # default config for Docker image
+├── config.example.yaml
+├── config.docker.yaml      # defaults baked into Docker image
 ├── Dockerfile              # multi-stage build
-└── docker-compose.yml
+├── docker-compose.yml
+└── docker-compose.minio.yml  # MinIO self-hosted storage bundle
 ```
 
 ### Makefile reference
@@ -358,38 +400,37 @@ supaback/
 | `make test` | Run Go tests |
 | `make tidy` | Tidy Go modules |
 | `make web-install` | Install npm dependencies |
-| `make web-dev` | Start Vite dev server with hot reload |
+| `make web-dev` | Start Vite dev server |
 | `make web-build` | Build frontend for production |
 | `make docker-build` | Build Docker image |
 | `make docker-up` | Start with Docker Compose |
 | `make docker-down` | Stop containers |
 | `make docker-logs` | Tail container logs |
+| `make docker-minio` | Start SupaBack + MinIO bundle |
 
 ---
 
 ## Docker details
 
-The Docker image uses a 3-stage build:
+Three-stage build:
 
 1. **`node:20-alpine`** — builds the React frontend
-2. **`golang:1.23-alpine`** — compiles the Go binary (static, CGO disabled)
+2. **`golang:1.23-alpine`** — compiles a static Go binary (CGO disabled)
 3. **`alpine:3.21`** — final image with `postgresql15-client` for `pg_dump`
 
-Final image size is approximately **70–90 MB**.
+Final image size: ~**70–90 MB**
 
 ### Volumes
 
-| Volume | Mount path | Contents |
-|--------|------------|----------|
-| `supaback-data` | `/data` | SQLite database (settings, job history) |
-| `supaback-backups` | `/backups` | Backup files (when using local destination) |
+| Volume | Mount | Contents |
+|--------|-------|----------|
+| `supaback-data` | `/data` | SQLite DB (settings, job history) |
+| `supaback-backups` | `/backups` | Backup files (local destination) |
 
 ### Updating
 
 ```bash
-docker compose pull          # if using a registry image
-# or
-docker compose build         # rebuild from source
+docker compose build     # rebuild from source
 docker compose up -d
 ```
 
@@ -397,27 +438,24 @@ docker compose up -d
 
 ## Roadmap
 
-- [ ] Backup retention policy (auto-delete old backups)
 - [ ] Email / webhook notifications on failure
-- [ ] Restore UI (browse and download backup files)
+- [ ] Restore UI — browse and download backup files from the UI
 - [ ] Multiple Supabase project support
-- [ ] GitHub Actions integration for off-site backups
+- [ ] Backup encryption at rest
 
 ---
 
 ## Contributing
 
-Pull requests are welcome. For major changes, open an issue first.
+Pull requests are welcome. For major changes please open an issue first.
 
 ```bash
 git checkout -b feature/my-feature
-# make your changes
+# make changes
 go test ./...
 git commit -m "feat: my feature"
 git push origin feature/my-feature
 ```
-
-Please keep PRs focused — one feature or fix per PR.
 
 ---
 
