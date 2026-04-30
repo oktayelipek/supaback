@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -40,6 +42,8 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 
 	slog.Info("starting database backup", "key", key)
 
+	dbURL := forceIPv4ConnURL(ctx, d.cfg.DatabaseURL)
+
 	pr, pw := io.Pipe()
 
 	var stderrBuf bytes.Buffer
@@ -47,7 +51,7 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 		"--format=custom",
 		"--no-owner",
 		"--no-privileges",
-		d.cfg.DatabaseURL,
+		dbURL,
 	)
 	cmd.Stdout = pw
 	cmd.Stderr = &stderrBuf
@@ -90,4 +94,36 @@ func (d *DatabaseBackup) Run(ctx context.Context) (int64, error) {
 
 	slog.Info("database backup complete", "key", key, "bytes", n)
 	return n, nil
+}
+
+// forceIPv4ConnURL resolves the hostname in a PostgreSQL connection URL to an
+// IPv4 address and injects it as the "hostaddr" parameter.  This prevents
+// pg_dump from trying IPv6 in environments (e.g. Alpine Docker) where IPv6
+// routing is absent.  The original "host" value is kept so libpq can still
+// verify the TLS certificate against the correct hostname.
+func forceIPv4ConnURL(ctx context.Context, rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return rawURL
+	}
+	host := u.Hostname()
+	if net.ParseIP(host).To4() != nil {
+		return rawURL // already an IPv4 literal
+	}
+	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		slog.Warn("DNS lookup failed, using original URL", "host", host, "err", err)
+		return rawURL
+	}
+	for _, a := range addrs {
+		if net.ParseIP(a).To4() != nil {
+			q := u.Query()
+			q.Set("hostaddr", a)
+			u.RawQuery = q.Encode()
+			slog.Info("resolved DB host to IPv4", "host", host, "addr", a)
+			return u.String()
+		}
+	}
+	slog.Warn("no IPv4 address found for DB host, using original URL", "host", host)
+	return rawURL
 }
