@@ -7,6 +7,7 @@ export function Settings_() {
   const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings })
   const [form, setForm] = useState<Partial<Record<string, string>>>({})
   const [saved, setSaved] = useState(false)
+  const [destWarning, setDestWarning] = useState('')
   const [destType, setDestType] = useState('local')
 
   useEffect(() => {
@@ -18,10 +19,11 @@ export function Settings_() {
 
   const save = useMutation({
     mutationFn: () => api.updateSettings(form),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['settings'] })
       qc.invalidateQueries({ queryKey: ['health'] })
       setSaved(true)
+      setDestWarning(res.destination_warning ?? '')
       setTimeout(() => setSaved(false), 3000)
     },
   })
@@ -282,7 +284,10 @@ export function Settings_() {
         >
           {save.isPending ? 'Saving…' : 'Save Settings'}
         </button>
-        {saved && <span className="text-sm text-emerald-600 font-medium">✓ Saved successfully</span>}
+        {saved && !destWarning && <span className="text-sm text-emerald-600 font-medium">✓ Saved successfully</span>}
+        {saved && destWarning && (
+          <span className="text-sm text-amber-600">✓ Saved — destination not active: {destWarning}</span>
+        )}
         {save.isError && (
           <span className="text-sm text-red-600">{(save.error as Error).message}</span>
         )}

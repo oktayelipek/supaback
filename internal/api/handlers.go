@@ -107,15 +107,21 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	currentCfg, _ := h.state.Get()
 	newCfg := config.MergeFromMap(currentCfg, dbSettings)
 
-	newDest, err := destination.New(newCfg.Destination)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid destination config: "+err.Error())
-		return
+	newDest, destErr := destination.New(newCfg.Destination)
+	if destErr == nil {
+		h.state.Update(newCfg, newDest)
+	} else {
+		// Settings are saved; only the active destination couldn't be rebuilt.
+		// Update config in state without changing the destination.
+		_, currentDest := h.state.Get()
+		h.state.Update(newCfg, currentDest)
 	}
 
-	h.state.Update(newCfg, newDest)
-
-	writeJSON(w, http.StatusOK, map[string]any{"status": "saved", "configured": config.IsConfigured(newCfg)})
+	resp := map[string]any{"status": "saved", "configured": config.IsConfigured(newCfg)}
+	if destErr != nil {
+		resp["destination_warning"] = destErr.Error()
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ── jobs ──────────────────────────────────────────────────────────────────────

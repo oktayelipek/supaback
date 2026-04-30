@@ -57,7 +57,7 @@ export const api = {
     request<Settings>('/api/settings'),
 
   updateSettings: (data: Partial<Record<string, string>>) =>
-    request<{ status: string; configured: boolean }>('/api/settings', {
+    request<{ status: string; configured: boolean; destination_warning?: string }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(data),
     }),

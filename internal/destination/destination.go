@@ -18,7 +18,11 @@ type Destination interface {
 }
 
 func New(cfg config.DestinationConfig) (Destination, error) {
-	switch cfg.Type {
+	t := cfg.Type
+	if t == "" {
+		t = "local"
+	}
+	switch t {
 	case "local":
 		return newLocal(cfg.LocalPath)
 	case "s3":
@@ -26,6 +30,6 @@ func New(cfg config.DestinationConfig) (Destination, error) {
 	case "sftp":
 		return newSFTP(cfg.SFTP)
 	default:
-		return nil, fmt.Errorf("unknown destination type: %q", cfg.Type)
+		return nil, fmt.Errorf("unknown destination type: %q", t)
 	}
 }
