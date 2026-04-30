@@ -5,8 +5,8 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      - supaback-data:/data
-      - supaback-backups:/backups
+      - ${SUPABACK_DATA_PATH:-/opt/supaback/data}:/data
+      - ${SUPABACK_BACKUPS_PATH:-/opt/supaback/backups}:/backups
     environment:
       # Supabase credentials — set in .env or in Coolify / Docker host env
       - SUPABASE_URL=${SUPABASE_URL:-}
@@ -25,8 +25,5 @@ services:
       timeout: 5s
       retries: 3
 
-volumes:
-  supaback-data:
-    name: supaback-data       # fixed name — survives Coolify project renames
-  supaback-backups:
-    name: supaback-backups    # fixed name — survives Coolify project renames
+# No named volumes — bind mounts above write directly to the host filesystem
+# so data survives container recreation, redeploys, and docker compose down -v.
